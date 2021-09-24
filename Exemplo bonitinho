@@ -1,0 +1,165 @@
+####Código usado no STATA####
+####Abaixo  temos  o  código(mais  especificamente  o  arquivo  ".do"  usado  STATA ) para a análise da variável abstenção até 2014:
+
+*Limpando a área de trabalho do STATA
+clear allset more offlog using "C:\Users\PC\Desktop\abstencao14", replace
+
+*Abrindo a base de dado
+use "C:\Users\WazX\Desktop\base.dados14.dta", clear
+
+*Estatística descritiva da base de dados
+sum  codigo ano analfabetos pobreza theil saude educ desemprego nascidos pib numero concentracao comparecimento abstencao branco nulo valido
+
+*Linearizando variáveis
+quietly  gen ln_sau=ln(saude/numero)
+quietly gen ln_edu=ln(educ/numero)
+quietly gen nas=(nascidos)/numero
+quietly gen abs=(abstencao)/numero
+quietly gen ana=analfabetos/100
+quietly gen pob=pobreza/100
+quietly gen des=desemprego/100
+
+*Correlação
+pwcorr abs ana theil pob ln_sau ln_edu des  pib  concentracao, star(.1)
+sum abs ana theil pob ln_sau ln_edu des  pibconcentracao
+
+*Analisando a    questão de  inflação  da variância devido a  variáveis independentes.(Multicolinearidade)
+*Regressão OLS abstencao
+regress   abs  ana  theil  pob  ln_sau  ln_edu  des    pibconcentracao,  vce(cluster codigo)
+estat vif
+*devemos tirar educação pois VIF>3.3
+regress abs ana theil pob ln_sau  des  pibconcentracao, vce(cluster codigo)
+estat vif
+*devemos retirar pobreza pois VIF>3.3
+regress abs ana theil  ln_sau des  pibconcentracao, vce(cluster codigo)
+estat vif
+*devemos retirar pib pois VIF>3.3
+regress abs ana theil ln_sau  des  concentracao, vce(cluster codigo)
+estat vif
+*Não é necessario retirar nada
+*Tabela com as variáveis independentes
+sum abs ana theil ln_sau  des  conc
+* Temos os mesmo resultado de VIF para comparecimento,valido,nulo,branco.
+
+*******Usando o estimador Arellano-Bond *******
+*Transformar  o  período  de  eleições(de  quatro  em  quatro  anos)  em  período continuo(1,2,3...)
+quietly gen ano2=1
+quietly replace ano2=2 if ano==1998
+quietly replace ano2=3 if ano==2002quietly replace ano2=4 if ano==2006
+quietly replace ano2=5 if ano==2010quietly replace ano2=6 if ano==2014
+quietly replace ano2=7 if ano==2018quietly xtset codigo ano2
+
+****Estimador Arellano-Bond****
+quietly xtset codigo ano2 
+*Arellano-Bond
+xtabond abs  ana  theil    ln_sau  des    concentracao  ,lags(1)  twostep  artests(3) vce(robust)
+*Teste de autocorrelaçãoestat abond, artests(3)
+*No caso não há presença de autocorrelação comonão rejeitamos H0 a níveis de significância de 1%,5% e 10%.Então não se usou a modelagem de Arellano-Bond
+*Teste de Sargan 
+xtabond abs ana theil  ln_sau des  concentracao, lags(1) twostep artests(3)
+estat sargan
+*H0:   condições   populacionais   de   momento   estão   corretas(Overidentifying restrictions are valid).
+
+*Gerando dummies para o modelo LSDV
+generate g1=1 if(codigo==11)
+replace g1=0 if g1==.
+generate g2=1 if(codigo==21) 
+replace g2=0 if g2==.
+generate g3=1 if(codigo==27)
+replace g3=0 if g3==.
+generate g4=1 if(codigo==31)
+replace g4=0 if g4==.
+generate g5=1 if(codigo==41)
+replace g5=0 if g5==.
+generate g6=1 if(codigo==48)
+replace g6=0 if g6==.
+generate g7=1 if(codigo==51) 
+replace g7=0 if g7==.
+generate g8=1 if(codigo==61) 
+replace g8=0 if g8==.
+generate g9=1 if(codigo==62) 
+replace g9=0 if g9==.
+generate g10=1 if(codigo==63) 
+replace g10=0 if g10==.
+generate g11=1 if(codigo==65) 
+replace g11=0 if g11==.
+generate g12=1 if(codigo==67) 
+replace g12=0 if g12==.
+generate g13=1 if(codigo==68) 
+replace g13=0 if g13==.
+generate g14=1 if(codigo==69)
+replace g14=0 if g14==.
+generate g15=1 if(codigo==71) 
+replace g15=0 if g15==.
+generate g16=1 if(codigo==79) 
+replace g16=0 if g16==.
+generate g17=1 if(codigo==81)
+replace g17=0 if g17==.
+generate g18=1 if(codigo==82) 
+replace g18=0 if g18==.
+generate g19=1 if(codigo==83)
+replace g19=0 if g19==.
+generate g20=1 if(codigo==84) 
+replace g20=0 if g20==.
+generate g21=1 if(codigo==86) 
+replace g21=0 if g21==.
+generate g22=1 if(codigo==88) 
+replace g22=0 if g22==.
+generate g23=1 if(codigo==91) 
+replace g23=0 if g23==.
+generate g24=1 if(codigo==92) 
+replace g24=0 if g24==.
+generate g25=1 if(codigo==95)
+replace g25=0 if g25==.
+generate g26=1 if(codigo==96)
+replace g26=0 if g26==.
+generate g27=1 if(codigo==98)
+replace g27=0 if g27==.
+
+*Modelo LSDV
+constraint define 1 g1+g2+g3+g4+g5+g6+g7+g8+g9+g10+g1+g12+g13+g14+g15+g16+g17+g18+g19+g20+g21+g22+g23+g24+g25+g26+g27=0
+cnsreg abs ana theil  ln_sau des concentracaog1-g27, constraint(1)
+
+******Teste F entre modelo POLS e FE******
+test g1 g2 g3 g4 g5 g6 g7 g8 g9 g10 g11 g12 g13 g14 g15 g16 g17 g18 g19 g20 g21 g22 g23 g24 g25 g26 g27
+*A rejeição da hipótese nula indica que prefere-se FE a POLS.
+* Para  estimar os  coeficientes  individuais  do  modelo  FE  sugere-se  rodar  um modelo do tipo LSDV como o da regressão abaixo.
+regress ln_abs ana theil  ln_sau des conc g1-g27,noconstant
+
+****Teste de Brausch e Pagan****
+xtset codigo ano
+xtreg abs ana theil   ln_sau des  concentracao, re vce(cluster codigo) theta
+xttest0. 
+*A não rejeição da hipótese nula indica que prefere-se POLS a RE.
+
+****Teste de Hausmann*****
+xtset codigo ano2
+constraint define 1 g1+g2+g3+g4+g5+g6+g7+g8+g9+g10+g11+g12+g13+g14+g15+g16+g17+g18+g19+g20+g21+g22+g23+g24+g25+g26+g27=0
+quietly cnsreg abs ana theil  ln_sau des concentracao g1-g27, constraint(1)
+estimates store fixed
+xtset codigo anoquietly xtreg  abs ana theil  ln_sau des  concentracao, re 
+estimates store re 
+hausman fixed re
+*Se a matriz de teste de Hausman não for positiva definida os inves de "hausman fixed re" usou-se "hausman fixed re,sigmamore "
+*A rejeição da hipótese nula indica que especificação correta é a de FE e não RE.
+
+****Modelos FE apresentado no trabalho foram estimados com: ****
+areg abs ana theil ln_sau des  concentracao,vce(cluster codigo) absorb(codigo)
+
+****Modelos POLS apresentado no trabalho foram estimados com: ****
+regress abs ana theil ln_sau des  concentracao,vce(cluster codigo) ***Testes não apresentados
+
+****OBSERVAÇÃO:Os testes a seguir não foram  apresentados devido a diversos problemas que podem ser visto na seção Testes não apresentados(anexo do arquivo do TCC).
+
+*Teste de Wooldridge (teste de autocorrelação serial)
+xtserial  abs ana theil   ln_sau des  concentracao
+*Teste de Wald modificado(teste de heterocedasticidade)
+quietly  xtreg  abs ana theil  ln_sau des  concentracao, fe 
+xttest3
+*Teste dePesaran( teste de independência cross section)
+quietly  xtreg  abs ana theil  ln_sau des  concentracao, fe 
+xtcsd ,pesaran 
+*teste deLevin-Lin_Chu (teste deraiz unitária)
+xtset codigo ano2xtunitroot llc abs
+*este teste nãopode ser rodado para nossa base de dados
+save "C:\Users\PC\Desktop\abstencao14", replace
